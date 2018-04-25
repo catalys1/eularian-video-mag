@@ -194,7 +194,7 @@ def process_video(source, dest):
         # for i in range(1, pyr_size):
         y[rng] *= alpha
         filtered = collapse_laplacian_pyramid(y, index, width, height)
-        filtered[..., 1:] *= attenuate
+        # filtered[..., 1:] *= attenuate
         result = frame + filtered
         result = result.clip(0.0, 1.0)
         result = revert_color_space(result)
