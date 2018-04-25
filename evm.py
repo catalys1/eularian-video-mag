@@ -116,7 +116,7 @@ def iir_temporal_filter(Fs, w1, w2, filter_type='butter'):
             if zi is None:
                 zi = np.zeros(
                     (max(len(a), len(b)) - 1, *x.shape), dtype='float32')
-            if x.ndim == 3:
+            if x.ndim == 2:
                 x = [x]
             y, zi = lfilter(b, a, x, axis=0, zi=zi)
             return y, zi
@@ -145,14 +145,14 @@ def iir_temporal_filter(Fs, w1, w2, filter_type='butter'):
 def convert_color_space(image):
     # image = cv.cvtColor(image, cv.COLOR_RGB2YUV, image)
     # image = cv.cvtColor(image, cv.COLOR_RGB2YCrCb, image)
-    image = cv.cvtColor(image, cv.COLOR_RGB2LAB, image)
+    # image = cv.cvtColor(image, cv.COLOR_RGB2LAB, image)
     return image
 
 
 def revert_color_space(image):
     # image = cv.cvtColor(image, cv.COLOR_YUV2RGB, image)
     # image = cv.cvtColor(image, cv.COLOR_LAB2YCrCb, image)
-    image = cv.cvtColor(image, cv.COLOR_LAB2RGB, image)
+    # image = cv.cvtColor(image, cv.COLOR_LAB2RGB, image)
     return image
 
 
@@ -171,13 +171,13 @@ def process_video(source, dest):
     w2 = 1.1  # upper cutoff frequency in Hz
 
     temporal_filter = iir_temporal_filter(Fs, w1, w2, 'butter')
-    zi = [None] * 5
+    zi = None
 
     pyr_size = 5
     alpha = 60
     attenuate = 0.1
 
-    amplifier = np.array([alpha] * 3) * [1, attenuate, attenuate]
+    # amplifier = np.array([alpha] * 3) * [1, attenuate, attenuate]
 
     times = []
     i = 0
@@ -185,21 +185,23 @@ def process_video(source, dest):
         start_time = time.time()
         frame = frame * np.float32(1 / 255)
         frame = convert_color_space(frame)
-        pyramid = make_laplacian_pyramid(frame, pyr_size)
-        for l in range(3):
-            image = pyramid[-l - 1]
-            y, z = temporal_filter(image, zi[l])
-            zi[l] = z
-            y = y.squeeze()
-            y *= (amplifier / (l + 1))
-            pyramid[-l - 1] = (image + y)
-        frame = collapse_laplacian_pyramid(pyramid)
-        frame = frame.clip(0.0, 1.0)
-        frame = revert_color_space(frame)
-        frame = (frame * 255).astype('uint8')
+        pyramid, index = make_laplacian_pyramid(frame, pyr_size)
+        y = np.zeros_like(pyramid)
+        # rng = slice(index[1], index[-2])
+        rng = slice(index[-2], index[-1])
+        y[rng], zi = temporal_filter(pyramid[rng], zi)
+        y = y.squeeze()
+        # for i in range(1, pyr_size):
+        y[rng] *= alpha
+        filtered = collapse_laplacian_pyramid(y, index, width, height)
+        filtered[..., 1:] *= attenuate
+        result = frame + filtered
+        result = result.clip(0.0, 1.0)
+        result = revert_color_space(result)
+        result = (result * 255).astype('uint8')
         end_time = time.time()
         times.append(end_time - start_time)
-        vid_out.append_data(frame, {'fps': Fs})
+        vid_out.append_data(result, {'fps': Fs})
         i += 1
         print(f'\r{i:3d}: {times[-1]:.4f}', end='')
     print('')
