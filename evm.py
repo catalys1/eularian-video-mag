@@ -116,6 +116,10 @@ def iir_temporal_filter(Fs, w1, w2, filter_type='butter'):
             if zi is None:
                 zi = np.zeros(
                     (max(len(a), len(b)) - 1, *x.shape), dtype='float32')
+                # zi = np.empty(
+                #     (max(len(a), len(b)) - 1, *x.shape), dtype='float32')
+                # zi[:] = x
+
             if x.ndim == 2:
                 x = [x]
             y, zi = lfilter(b, a, x, axis=0, zi=zi)
@@ -167,14 +171,14 @@ def process_video(source, dest):
     print(f'{source}: width={width}, height={height}')
 
     Fs = metadata['fps']  # Frame rate / sampling frequency
-    w1 = 0.7  # lower cutoff frequency in Hz
-    w2 = 1.1  # upper cutoff frequency in Hz
+    w1 = 1.5  # lower cutoff frequency in Hz
+    w2 = 2.5  # upper cutoff frequency in Hz
 
     temporal_filter = iir_temporal_filter(Fs, w1, w2, 'butter')
     zi = None
 
     pyr_size = 5
-    alpha = 60
+    alpha = 40
     attenuate = 0.1
 
     # amplifier = np.array([alpha] * 3) * [1, attenuate, attenuate]
@@ -188,7 +192,7 @@ def process_video(source, dest):
         pyramid, index = make_laplacian_pyramid(frame, pyr_size)
         y = np.zeros_like(pyramid)
         # rng = slice(index[1], index[-2])
-        rng = slice(index[-2], index[-1])
+        rng = slice(index[1], index[-2])
         y[rng], zi = temporal_filter(pyramid[rng], zi)
         y = y.squeeze()
         # for i in range(1, pyr_size):
